@@ -17,7 +17,8 @@ license-files = ["LICENSE"]
 dependencies = [
     "selenium",
     "typer >= 0.12.3",
-    "requests"
+    "requests",
+    "tqdm"
 ]
 
 [project.scripts]
