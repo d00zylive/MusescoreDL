@@ -9,8 +9,34 @@ import typer
 from typing_extensions import Annotated
 from tqdm import tqdm
 import re
+from svglib.svglib import svg2rlg
+from reportlab.graphics import renderPDF
+from reportlab.graphics.shapes import Drawing
+from pypdf import PdfWriter
 
-def DownloadScore(url: Annotated[str, typer.Argument(help="The URL to the score you want to download")], folder_path: Annotated[str, typer.Option(help="The complete path to the folder you want the scores to be put in")] = os.getcwd(), max_wait_timeout: Annotated[int, typer.Option(help="The amount of time to wait for a page to load before concluding something has failed (Only change when wifi is slow)")] = 30):
+def MergeSvgs(folder_path: str, file_name: str, cleanup: bool = True) -> None:
+    score_pattern = re.compile(r"score_\d\.svg")
+    for file in os.listdir(folder_path):
+        if score_pattern.match(file):
+            svg = svg2rlg(file)
+            assert type(svg) == Drawing
+            renderPDF.drawToFile(svg, f"{file[:-4]}.pdf")
+
+    pdf_pattern = re.compile(r"score_\d\.pdf")
+    pdf_writer = PdfWriter()
+    for file in os.listdir(folder_path):
+        if pdf_pattern.match(file):
+            pdf_writer.append(file)
+    pdf_writer.write(os.path.join(folder_path, file_name))
+    
+    delete_pattern = re.compile(r"score_\d\.(pdf|svg)")
+    
+    if cleanup:
+        for file in os.listdir(folder_path):
+                if delete_pattern.match(file):
+                    os.remove(file)
+
+def DownloadScore(url: Annotated[str, typer.Argument(help="The URL to the score you want to download")], folder_path: Annotated[str, typer.Option(help="The complete path to the folder you want the scores to be put in")] = os.getcwd(), max_wait_timeout: Annotated[int, typer.Option(help="The amount of time to wait for a page to load before concluding something has failed (Only change when wifi is slow)")] = 30, cleanup: Annotated[bool, typer.Option(help="Whether it should clean up all the files it creates. Only turn this off if you need singular sheets")] = True):
     score_pattern = re.compile(r"score_\d\.svg")
     if any([score_pattern.match(file) for file in os.listdir(folder_path)]):
         if input("Found a score in the folder, the program will not be able to run unless this is either moved or deleted.\nDo you want to delete all the scores in the folder? (y/n)    ").lower() == "y":
@@ -45,10 +71,10 @@ def DownloadScore(url: Annotated[str, typer.Argument(help="The URL to the score 
                     driver.get(src)
                     f.write(driver.page_source)
         driver.close()
-        
     except selenium_exceptions.TimeoutException:
         driver.close()
         raise TimeoutError("The page took too long to load. If nothing went wrong, try again with a higher max_wait_timeout")
-
+    MergeSvgs(folder_path, "score.pdf", cleanup)
+    
 if __name__ == "__main__":
     DownloadScore(input("Musescore URL:    "))
